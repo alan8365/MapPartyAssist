@@ -6,6 +6,11 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
+      branch:
+        description: 'Branch to build (default: selected branch)'
+        required: false
+        default: ''
+        type: string
       commit:
         description: 'Commit SHA to build (default: 220591f4a87ee8af4a27e00b2833e0d0a40b1f01)'
         required: false
@@ -32,26 +37,39 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             tag="${{ github.ref_name }}"
             version="${tag#v}"
-            commit="${{ github.sha }}"
+            checkout_ref="${{ github.sha }}"
+            target_commitish="${{ github.sha }}"
           else
             version="${{ inputs.version }}"
+            branch="${{ inputs.branch }}"
+            if [ -z "$branch" ]; then
+              branch="${{ github.ref_name }}"
+            fi
             commit="${{ inputs.commit }}"
+            if [ -z "$commit" ]; then
+              checkout_ref="$branch"
+              target_commitish="$branch"
+            else
+              checkout_ref="$commit"
+              target_commitish="$commit"
+            fi
             tag="v${version}"
           fi
           echo "tag=$tag"         >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "commit=$commit"   >> "$GITHUB_OUTPUT"
-          echo "Building $tag from $commit"
+          echo "checkout_ref=$checkout_ref"         >> "$GITHUB_OUTPUT"
+          echo "target_commitish=$target_commitish" >> "$GITHUB_OUTPUT"
+          echo "Building $tag from $checkout_ref"
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.target.outputs.commit }}
+          ref: ${{ steps.target.outputs.checkout_ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
+          dotnet-version: '10.x'
 
       - name: Download Dalamud
         shell: pwsh
@@ -78,7 +96,7 @@ jobs:
         with:
           tag_name: ${{ steps.target.outputs.tag }}
           name: MapPartyAssist ${{ steps.target.outputs.tag }}
-          target_commitish: ${{ steps.target.outputs.commit }}
+          target_commitish: ${{ steps.target.outputs.target_commitish }}
           files: latest.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
