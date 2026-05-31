@@ -6,9 +6,15 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g. v2.4.1.3). Defaults to the ref this is dispatched on.'
+      commit:
+        description: 'Commit SHA to build (default: 220591f4a87ee8af4a27e00b2833e0d0a40b1f01)'
         required: false
+        default: '220591f4a87ee8af4a27e00b2833e0d0a40b1f01'
+        type: string
+      version:
+        description: 'Version to release (default: 2.4.1.3)'
+        required: false
+        default: '2.4.1.3'
         type: string
 
 permissions:
@@ -19,29 +25,28 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Resolve target tag
-        id: tag
+      - name: Resolve build target
+        id: target
         shell: bash
         run: |
-          ref_name="${{ github.ref_name }}"
-          input_tag="${{ inputs.tag }}"
-          if [ -n "$input_tag" ]; then
-            target="$input_tag"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${{ github.ref_name }}"
+            version="${tag#v}"
+            commit="${{ github.sha }}"
           else
-            target="$ref_name"
+            version="${{ inputs.version }}"
+            commit="${{ inputs.commit }}"
+            tag="v${version}"
           fi
-          if [[ ! "$target" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "::error::Resolved target '$target' is not a v*.*.* tag — pass the tag input or dispatch on a tag ref."
-            exit 1
-          fi
-          echo "target=$target" >> "$GITHUB_OUTPUT"
-          echo "version=${target#v}" >> "$GITHUB_OUTPUT"
-          echo "Releasing $target"
+          echo "tag=$tag"         >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit"   >> "$GITHUB_OUTPUT"
+          echo "Building $tag from $commit"
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.tag.outputs.target }}
+          ref: ${{ steps.target.outputs.commit }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -71,8 +76,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.target }}
-          name: MapPartyAssist ${{ steps.tag.outputs.target }}
+          tag_name: ${{ steps.target.outputs.tag }}
+          name: MapPartyAssist ${{ steps.target.outputs.tag }}
+          target_commitish: ${{ steps.target.outputs.commit }}
           files: latest.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
