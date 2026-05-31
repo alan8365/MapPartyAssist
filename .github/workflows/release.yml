@@ -78,7 +78,13 @@ jobs:
             $apiLevel = 15
           }
           $dotnetVersion = if ($apiLevel -ge 15) { '10.x' } else { '9.x' }
-          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/api${apiLevel}/latest.zip"
+          if ($apiLevel -eq 12) {
+            $dalamudUrl = 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/41a39b4f8c1d4d865008e8171ee30b0440b286c2/api12/latest.zip'
+          } elseif ($apiLevel -ge 15) {
+            $dalamudUrl = 'https://goatcorp.github.io/dalamud-distrib/api15/latest.zip'
+          } else {
+            $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/api${apiLevel}/latest.zip"
+          }
           Write-Host "Detected Dalamud.NET.Sdk API level $apiLevel -> .NET $dotnetVersion, $dalamudUrl"
           "api_level=$apiLevel"    >> $env:GITHUB_OUTPUT
           "dotnet_version=$dotnetVersion" >> $env:GITHUB_OUTPUT
