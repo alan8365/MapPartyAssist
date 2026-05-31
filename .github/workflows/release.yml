@@ -66,15 +66,33 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.checkout_ref }}
 
+      - name: Detect Dalamud API level
+        id: dalamud
+        shell: pwsh
+        run: |
+          $csproj = Get-ChildItem -Recurse -Filter '*.csproj' | Select-Object -First 1
+          $content = Get-Content $csproj.FullName -Raw
+          if ($content -match 'Sdk="Dalamud\.NET\.Sdk/(\d+)\.') {
+            $apiLevel = [int]$Matches[1]
+          } else {
+            $apiLevel = 15
+          }
+          $dotnetVersion = if ($apiLevel -ge 15) { '10.x' } else { '9.x' }
+          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/api${apiLevel}/latest.zip"
+          Write-Host "Detected Dalamud.NET.Sdk API level $apiLevel -> .NET $dotnetVersion, $dalamudUrl"
+          "api_level=$apiLevel"    >> $env:GITHUB_OUTPUT
+          "dotnet_version=$dotnetVersion" >> $env:GITHUB_OUTPUT
+          "dalamud_url=$dalamudUrl"       >> $env:GITHUB_OUTPUT
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.x'
+          dotnet-version: ${{ steps.dalamud.outputs.dotnet_version }}
 
       - name: Download Dalamud
         shell: pwsh
         run: |
-          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/latest.zip"
+          $dalamudUrl = "${{ steps.dalamud.outputs.dalamud_url }}"
           $dalamudDir = "$env:AppData\XIVLauncher\addon\Hooks\dev"
           New-Item -ItemType Directory -Force -Path $dalamudDir | Out-Null
           Invoke-WebRequest -Uri $dalamudUrl -OutFile dalamud.zip
