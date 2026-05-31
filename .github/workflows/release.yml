@@ -12,9 +12,9 @@ on:
         default: ''
         type: string
       commit:
-        description: 'Commit SHA to build (default: selected branch HEAD)'
+        description: 'Commit SHA to build (default: 220591f4a87ee8af4a27e00b2833e0d0a40b1f01)'
         required: false
-        default: ''
+        default: '220591f4a87ee8af4a27e00b2833e0d0a40b1f01'
         type: string
       version:
         description: 'Version to release (default: 2.4.1.3)'
