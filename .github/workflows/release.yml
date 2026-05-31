@@ -1,0 +1,78 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v2.4.1.3). Defaults to the ref this is dispatched on.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve target tag
+        id: tag
+        shell: bash
+        run: |
+          ref_name="${{ github.ref_name }}"
+          input_tag="${{ inputs.tag }}"
+          if [ -n "$input_tag" ]; then
+            target="$input_tag"
+          else
+            target="$ref_name"
+          fi
+          if [[ ! "$target" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Resolved target '$target' is not a v*.*.* tag — pass the tag input or dispatch on a tag ref."
+            exit 1
+          fi
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "version=${target#v}" >> "$GITHUB_OUTPUT"
+          echo "Releasing $target"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.target }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          $dalamudUrl = "https://goatcorp.github.io/dalamud-distrib/latest.zip"
+          $dalamudDir = "$env:AppData\XIVLauncher\addon\Hooks\dev"
+          New-Item -ItemType Directory -Force -Path $dalamudDir | Out-Null
+          Invoke-WebRequest -Uri $dalamudUrl -OutFile dalamud.zip
+          Expand-Archive -Path dalamud.zip -DestinationPath $dalamudDir -Force
+          Remove-Item dalamud.zip
+
+      - name: Build
+        run: dotnet build MapPartyAssist.sln --configuration Release
+
+      - name: Stage latest.zip
+        shell: pwsh
+        run: |
+          $src = 'MapPartyAssist/bin/Release/MapPartyAssist/latest.zip'
+          if (-not (Test-Path $src)) { throw "SDK-built plugin zip not found at $src" }
+          Copy-Item $src 'latest.zip' -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.target }}
+          name: MapPartyAssist ${{ steps.tag.outputs.target }}
+          files: latest.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
